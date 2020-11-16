@@ -21,12 +21,21 @@ class cmLocalGenerator;
 class cmInstallTargetGenerator : public cmInstallGenerator
 {
 public:
+  enum OutputArtifactType
+  {
+    Others,
+    Archive,
+    Library,
+    Runtime,
+  };
+
   cmInstallTargetGenerator(
     std::string targetName, std::string const& dest, bool implib,
     std::string file_permissions,
     std::vector<std::string> const& configurations,
-    std::string const& component, MessageLevel message, bool exclude_from_all,
-    bool optional, cmListFileBacktrace backtrace = cmListFileBacktrace());
+    std::string const& component, OutputArtifactType artifactType,
+    MessageLevel message, bool exclude_from_all, bool optional,
+    cmListFileBacktrace backtrace = cmListFileBacktrace());
   ~cmInstallTargetGenerator() override;
 
   /** Select the policy for installing shared library linkable name
@@ -105,11 +114,14 @@ protected:
                                const std::string& toDestDirPath);
   void IssueCMP0095Warning(const std::string& unescapedRpath);
 
+  std::string GetDefaultTargetPermissions() const;
+
   std::string const TargetName;
   cmGeneratorTarget* Target;
-  std::string const FilePermissions;
+  std::string FilePermissions;
   NamelinkModeType NamelinkMode;
   bool const ImportLibrary;
   bool const Optional;
   cmListFileBacktrace const Backtrace;
+  OutputArtifactType ArtifactType;
 };

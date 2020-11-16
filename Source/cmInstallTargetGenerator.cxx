@@ -8,7 +8,12 @@
 #include <sstream>
 #include <utility>
 
+#include <cmext/string_view>
+
+#include <sys/types.h>
+
 #include "cmComputeLinkInformation.h"
+#include "cmFSPermissions.h"
 #include "cmGeneratorExpression.h"
 #include "cmGeneratorTarget.h"
 #include "cmGlobalGenerator.h"
@@ -28,8 +33,9 @@
 cmInstallTargetGenerator::cmInstallTargetGenerator(
   std::string targetName, std::string const& dest, bool implib,
   std::string file_permissions, std::vector<std::string> const& configurations,
-  std::string const& component, MessageLevel message, bool exclude_from_all,
-  bool optional, cmListFileBacktrace backtrace)
+  std::string const& component, OutputArtifactType artifactType,
+  MessageLevel message, bool exclude_from_all, bool optional,
+  cmListFileBacktrace backtrace)
   : cmInstallGenerator(dest, configurations, component, message,
                        exclude_from_all)
   , TargetName(std::move(targetName))
@@ -38,6 +44,7 @@ cmInstallTargetGenerator::cmInstallTargetGenerator(
   , ImportLibrary(implib)
   , Optional(optional)
   , Backtrace(std::move(backtrace))
+  , ArtifactType(artifactType)
 {
   this->ActionsPerConfig = true;
   this->NamelinkMode = NamelinkModeNone;
@@ -322,6 +329,17 @@ void cmInstallTargetGenerator::GenerateScriptForConfig(
   const char* no_dir_permissions = nullptr;
   const char* no_rename = nullptr;
   bool optional = this->Optional || this->ImportLibrary;
+
+  std::string defaultPermissions;
+  if (this->ArtifactType == OutputArtifactType::Archive ||
+      this->ArtifactType == OutputArtifactType::Library ||
+      this->ArtifactType == OutputArtifactType::Runtime) {
+    defaultPermissions = this->GetDefaultTargetPermissions();
+  }
+  if (this->FilePermissions.empty() && !defaultPermissions.empty()) {
+    this->FilePermissions = defaultPermissions;
+  }
+
   this->AddInstallRule(os, this->GetDestination(config), type, filesFrom,
                        optional, this->FilePermissions.c_str(),
                        no_dir_permissions, no_rename, literal_args.c_str(),
@@ -906,4 +924,50 @@ void cmInstallTargetGenerator::IssueCMP0095Warning(
     this->Target->GetGlobalGenerator()->GetCMakeInstance()->IssueMessage(
       MessageType::AUTHOR_WARNING, w.str(), this->GetBacktrace());
   }
+}
+
+std::string cmInstallTargetGenerator::GetDefaultTargetPermissions() const
+{
+  std::string variableName;
+  switch (this->ArtifactType) {
+    case Archive:
+      variableName = "CMAKE_INSTALL_DEFAULT_TARGET_ARCHIVE_PERMISSIONS";
+      break;
+    case Library:
+      variableName = "CMAKE_INSTALL_DEFAULT_TARGET_LIBRARY_PERMISSIONS";
+      break;
+    case Runtime:
+      variableName = "CMAKE_INSTALL_DEFAULT_TARGET_RUNTIME_PERMISSIONS";
+      break;
+    default:
+      break;
+  }
+
+  if (variableName.empty()) {
+    return {};
+  }
+
+  mode_t mode = 0;
+  std::vector<std::string> permissions;
+
+  cmProp default_dir_install_permissions =
+    this->Target->Makefile->GetDefinition(variableName);
+  if (!cmNonempty(default_dir_install_permissions)) {
+    return {};
+  }
+
+  std::vector<std::string> items =
+    cmExpandedList(*default_dir_install_permissions);
+  for (const auto& arg : items) {
+    if (!cmFSPermissions::stringToModeT(arg, mode)) {
+      std::ostringstream oss;
+      oss << variableName << " given invalid permission \"" << arg << "\".";
+      this->Target->GetGlobalGenerator()->GetCMakeInstance()->IssueMessage(
+        MessageType::FATAL_ERROR, oss.str(), this->GetBacktrace());
+      return {};
+    }
+    permissions.push_back(arg);
+  }
+
+  return cmJoin(permissions, " "_s, " "_s);
 }

@@ -88,6 +88,7 @@ public:
 std::unique_ptr<cmInstallTargetGenerator> CreateInstallTargetGenerator(
   cmTarget& target, const cmInstallCommandArguments& args, bool impLib,
   cmListFileBacktrace const& backtrace, const std::string& destination,
+  cmInstallTargetGenerator::OutputArtifactType artifactType,
   bool forceOpt = false, bool namelink = false)
 {
   cmInstallGenerator::MessageLevel message =
@@ -97,20 +98,21 @@ std::unique_ptr<cmInstallTargetGenerator> CreateInstallTargetGenerator(
     namelink ? args.GetNamelinkComponent() : args.GetComponent();
   auto g = cm::make_unique<cmInstallTargetGenerator>(
     target.GetName(), destination, impLib, args.GetPermissions(),
-    args.GetConfigurations(), component, message, args.GetExcludeFromAll(),
-    args.GetOptional() || forceOpt, backtrace);
+    args.GetConfigurations(), component, artifactType, message,
+    args.GetExcludeFromAll(), args.GetOptional() || forceOpt, backtrace);
   target.AddInstallGenerator(g.get());
   return g;
 }
 
 std::unique_ptr<cmInstallTargetGenerator> CreateInstallTargetGenerator(
   cmTarget& target, const cmInstallCommandArguments& args, bool impLib,
-  cmListFileBacktrace const& backtrace, bool forceOpt = false,
-  bool namelink = false)
+  cmListFileBacktrace const& backtrace,
+  cmInstallTargetGenerator::OutputArtifactType artifactType,
+  bool forceOpt = false, bool namelink = false)
 {
   return CreateInstallTargetGenerator(target, args, impLib, backtrace,
-                                      args.GetDestination(), forceOpt,
-                                      namelink);
+                                      args.GetDestination(), artifactType,
+                                      forceOpt, namelink);
 }
 
 std::unique_ptr<cmInstallFilesGenerator> CreateInstallFilesGenerator(
@@ -506,22 +508,26 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
           if (!archiveArgs.GetDestination().empty()) {
             // The import library uses the ARCHIVE properties.
             archiveGenerator = CreateInstallTargetGenerator(
-              target, archiveArgs, true, helper.Makefile->GetBacktrace());
+              target, archiveArgs, true, helper.Makefile->GetBacktrace(),
+              cmInstallTargetGenerator::OutputArtifactType::Archive);
             artifactsSpecified = true;
           }
           if (!runtimeArgs.GetDestination().empty()) {
             // The DLL uses the RUNTIME properties.
             runtimeGenerator = CreateInstallTargetGenerator(
-              target, runtimeArgs, false, helper.Makefile->GetBacktrace());
+              target, runtimeArgs, false, helper.Makefile->GetBacktrace(),
+              cmInstallTargetGenerator::OutputArtifactType::Runtime);
             artifactsSpecified = true;
           }
           if (!archiveGenerator && !runtimeGenerator) {
             archiveGenerator = CreateInstallTargetGenerator(
               target, archiveArgs, true, helper.Makefile->GetBacktrace(),
-              helper.GetArchiveDestination(nullptr));
+              helper.GetArchiveDestination(nullptr),
+              cmInstallTargetGenerator::OutputArtifactType::Archive);
             runtimeGenerator = CreateInstallTargetGenerator(
               target, runtimeArgs, false, helper.Makefile->GetBacktrace(),
-              helper.GetRuntimeDestination(nullptr));
+              helper.GetRuntimeDestination(nullptr),
+              cmInstallTargetGenerator::OutputArtifactType::Runtime);
           }
         } else {
           // This is a non-DLL platform.
@@ -538,7 +544,8 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
             // Use the FRAMEWORK properties.
             if (!frameworkArgs.GetDestination().empty()) {
               frameworkGenerator = CreateInstallTargetGenerator(
-                target, frameworkArgs, false, helper.Makefile->GetBacktrace());
+                target, frameworkArgs, false, helper.Makefile->GetBacktrace(),
+                cmInstallTargetGenerator::OutputArtifactType::Others);
             } else {
               status.SetError(
                 cmStrCat("TARGETS given no FRAMEWORK DESTINATION for shared "
@@ -554,14 +561,17 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
             if (namelinkMode != cmInstallTargetGenerator::NamelinkModeOnly) {
               libraryGenerator = CreateInstallTargetGenerator(
                 target, libraryArgs, false, helper.Makefile->GetBacktrace(),
-                helper.GetLibraryDestination(&libraryArgs));
+                helper.GetLibraryDestination(&libraryArgs),
+                cmInstallTargetGenerator::OutputArtifactType::Library);
               libraryGenerator->SetNamelinkMode(
                 cmInstallTargetGenerator::NamelinkModeSkip);
             }
             if (namelinkMode != cmInstallTargetGenerator::NamelinkModeSkip) {
               namelinkGenerator = CreateInstallTargetGenerator(
                 target, libraryArgs, false, helper.Makefile->GetBacktrace(),
-                helper.GetLibraryDestination(&libraryArgs), false, true);
+                helper.GetLibraryDestination(&libraryArgs),
+                cmInstallTargetGenerator::OutputArtifactType::Library, false,
+                true);
               namelinkGenerator->SetNamelinkMode(
                 cmInstallTargetGenerator::NamelinkModeOnly);
             }
@@ -584,7 +594,8 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
           // Use the FRAMEWORK properties.
           if (!frameworkArgs.GetDestination().empty()) {
             frameworkGenerator = CreateInstallTargetGenerator(
-              target, frameworkArgs, false, helper.Makefile->GetBacktrace());
+              target, frameworkArgs, false, helper.Makefile->GetBacktrace(),
+              cmInstallTargetGenerator::OutputArtifactType::Others);
           } else {
             status.SetError(
               cmStrCat("TARGETS given no FRAMEWORK DESTINATION for static "
@@ -599,14 +610,16 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
           }
           archiveGenerator = CreateInstallTargetGenerator(
             target, archiveArgs, false, helper.Makefile->GetBacktrace(),
-            helper.GetArchiveDestination(&archiveArgs));
+            helper.GetArchiveDestination(&archiveArgs),
+            cmInstallTargetGenerator::OutputArtifactType::Archive);
         }
       } break;
       case cmStateEnums::MODULE_LIBRARY: {
         // Modules use LIBRARY properties.
         if (!libraryArgs.GetDestination().empty()) {
           libraryGenerator = CreateInstallTargetGenerator(
-            target, libraryArgs, false, helper.Makefile->GetBacktrace());
+            target, libraryArgs, false, helper.Makefile->GetBacktrace(),
+            cmInstallTargetGenerator::OutputArtifactType::Library);
           libraryGenerator->SetNamelinkMode(namelinkMode);
           namelinkOnly =
             (namelinkMode == cmInstallTargetGenerator::NamelinkModeOnly);
@@ -632,7 +645,8 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
           }
 
           objectGenerator = CreateInstallTargetGenerator(
-            target, objectArgs, false, helper.Makefile->GetBacktrace());
+            target, objectArgs, false, helper.Makefile->GetBacktrace(),
+            cmInstallTargetGenerator::OutputArtifactType::Others);
         } else {
           // Installing an OBJECT library without a destination transforms
           // it to an INTERFACE library.  It installs no files but can be
@@ -644,14 +658,16 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
           // Application bundles use the BUNDLE properties.
           if (!bundleArgs.GetDestination().empty()) {
             bundleGenerator = CreateInstallTargetGenerator(
-              target, bundleArgs, false, helper.Makefile->GetBacktrace());
+              target, bundleArgs, false, helper.Makefile->GetBacktrace(),
+              cmInstallTargetGenerator::OutputArtifactType::Runtime);
           } else if (!runtimeArgs.GetDestination().empty()) {
             bool failure = false;
             if (helper.CheckCMP0006(failure)) {
               // For CMake 2.4 compatibility fallback to the RUNTIME
               // properties.
               bundleGenerator = CreateInstallTargetGenerator(
-                target, runtimeArgs, false, helper.Makefile->GetBacktrace());
+                target, runtimeArgs, false, helper.Makefile->GetBacktrace(),
+                cmInstallTargetGenerator::OutputArtifactType::Runtime);
             } else if (failure) {
               return false;
             }
@@ -669,7 +685,8 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
           }
           runtimeGenerator = CreateInstallTargetGenerator(
             target, runtimeArgs, false, helper.Makefile->GetBacktrace(),
-            helper.GetRuntimeDestination(&runtimeArgs));
+            helper.GetRuntimeDestination(&runtimeArgs),
+            cmInstallTargetGenerator::OutputArtifactType::Runtime);
         }
 
         // On DLL platforms an executable may also have an import
@@ -681,7 +698,8 @@ bool HandleTargetsMode(std::vector<std::string> const& args,
           // The import library uses the ARCHIVE properties.
           artifactsSpecified = true;
           archiveGenerator = CreateInstallTargetGenerator(
-            target, archiveArgs, true, helper.Makefile->GetBacktrace(), true);
+            target, archiveArgs, true, helper.Makefile->GetBacktrace(),
+            cmInstallTargetGenerator::OutputArtifactType::Runtime, true);
         }
       } break;
       case cmStateEnums::INTERFACE_LIBRARY:

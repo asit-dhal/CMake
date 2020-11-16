@@ -3247,6 +3247,7 @@ public:
                                 std::string const& dest, bool implib)
     : cmInstallTargetGenerator(
         t, dest, implib, "", std::vector<std::string>(), "Unspecified",
+        cmInstallTargetGenerator::Others,
         cmInstallGenerator::SelectMessageLevel(lg->GetMakefile()), false,
         false)
   {

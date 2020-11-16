@@ -1,0 +1,6 @@
+enable_language(C)
+add_library(mylibWithPerm SHARED obj1.c)
+set(CMAKE_INSTALL_DEFAULT_TARGET_LIBRARY_PERMISSIONS OWNER_READ_WRITE OWNER_EXECUTE)
+install(TARGETS mylibWithPerm
+  ARCHIVE DESTINATION lib
+)

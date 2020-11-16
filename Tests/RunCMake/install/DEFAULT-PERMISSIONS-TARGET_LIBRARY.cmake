@@ -1,0 +1,19 @@
+enable_language(C)
+
+set(CMAKE_INSTALL_DEFAULT_TARGET_LIBRARY_PERMISSIONS OWNER_READ OWNER_EXECUTE)
+
+add_library(default_perm_shared_lib SHARED obj1.c)
+set_target_properties(default_perm_shared_lib PROPERTIES PREFIX "" SUFFIX "")
+install(TARGETS default_perm_shared_lib LIBRARY)
+
+add_library(custom_perm_shared_lib SHARED obj1.c)
+set_target_properties(custom_perm_shared_lib PROPERTIES PREFIX "" SUFFIX "")
+install(TARGETS custom_perm_shared_lib LIBRARY PERMISSIONS OWNER_READ)
+
+add_library(custom_perm_lib STATIC obj1.c)
+set_target_properties(custom_perm_lib PROPERTIES PREFIX "" SUFFIX "")
+install(TARGETS custom_perm_lib ARCHIVE PERMISSIONS OWNER_READ)
+
+add_executable(custom_perm_exe main.c)
+set_target_properties(custom_perm_exe PROPERTIES PREFIX "" SUFFIX "")
+install(TARGETS custom_perm_exe RUNTIME PERMISSIONS OWNER_READ OWNER_EXECUTE WORLD_READ WORLD_EXECUTE)

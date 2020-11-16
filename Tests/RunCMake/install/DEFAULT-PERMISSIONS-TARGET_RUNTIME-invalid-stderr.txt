@@ -1,0 +1,8 @@
+CMake Error at DEFAULT-PERMISSIONS-TARGET_RUNTIME-invalid.cmake:4 \(install\):
+  CMAKE_INSTALL_DEFAULT_TARGET_RUNTIME_PERMISSIONS given invalid permission
+  "OWNER_READ_WRITE".
+Call Stack \(most recent call first\):
+  CMakeLists.txt:3 \(include\)
+
+
+CMake Generate step failed.  Build files cannot be regenerated correctly.

@@ -62,6 +62,48 @@ function(run_cmake_ELFRPATH_only case)
   endif()
 endfunction()
 
+function(check_permission file_path expected_permission)
+  if(NOT EXISTS "${file_path}")
+    message(SEND_ERROR "Missing file:\n  ${file_path}")
+  endif()
+
+  if (NOT "${expected_permission}")
+    message(SEND_ERROR "perm can't be empty")
+  endif()
+
+  if (UNIX)
+    find_program(STAT_EXECUTABLE NAMES stat)
+    if(NOT STAT_EXECUTABLE)
+      return()
+    endif()
+
+    if (CMAKE_HOST_SYSTEM_NAME MATCHES "FreeBSD")
+      execute_process(COMMAND "${STAT_EXECUTABLE}" -f %Lp "${file_path}"
+        OUTPUT_VARIABLE output
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+    elseif (CMAKE_HOST_SYSTEM_NAME MATCHES "Darwin")
+      execute_process(COMMAND "${STAT_EXECUTABLE}" -f %A "${file_path}"
+        OUTPUT_VARIABLE output
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+    else()
+      execute_process(COMMAND "${STAT_EXECUTABLE}" -c %a "${file_path}"
+        OUTPUT_VARIABLE output
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        )
+    endif()
+
+    if (NOT output EQUAL "${expected_permission}")
+      message(SEND_ERROR "installed file: \"${file_path}\" "
+        "actual permission: \"${output}\" "
+        "desired permission: \"${expected_permission}\""
+        )
+    endif()
+  endif()
+endfunction()
+
+
 run_cmake(TARGETS-FILE_RPATH_CHANGE-old_rpath)
 run_cmake_ELFRPATH_only(TARGETS-FILE_RPATH_CHANGE-new_rpath)
 run_cmake(DIRECTORY-MESSAGE_NEVER)
@@ -168,3 +210,19 @@ run_install_test(FILES-EXCLUDE_FROM_ALL)
 run_install_test(TARGETS-EXCLUDE_FROM_ALL)
 run_install_test(TARGETS-NAMELINK_COMPONENT)
 run_install_test(SCRIPT-COMPONENT)
+
+if(NOT WIN32)
+  set(RunCMake_TEST_OPTIONS
+    "-DCMAKE_INSTALL_BINDIR:PATH=bin"
+    "-DCMAKE_INSTALL_LIBDIR:PATH=lib"
+    )
+
+  run_cmake(DEFAULT-PERMISSIONS-TARGET_ARCHIVE-invalid)
+  run_cmake(DEFAULT-PERMISSIONS-TARGET_LIBRARY-invalid)
+  run_cmake(DEFAULT-PERMISSIONS-TARGET_RUNTIME-invalid)
+
+  run_install_test(DEFAULT-PERMISSIONS-TARGET_ARCHIVE)
+  run_install_test(DEFAULT-PERMISSIONS-TARGET_LIBRARY)
+  run_install_test(DEFAULT-PERMISSIONS-TARGET_RUNTIME)
+  unset(RunCMake_TEST_OPTIONS)
+endif()
