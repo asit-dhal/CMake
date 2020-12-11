@@ -1,0 +1,49 @@
+# Copyright(c) 2018 Asit Dhal.
+# Distributed under the MIT License (http://opensource.org/licenses/MIT)
+
+language: cpp
+sudo: required
+dist: trusty
+
+configuration:
+  - Release
+  - Debug
+
+
+matrix:
+  include:
+  - os: osx
+    osx_image: xcode12
+    compiler: gcc
+  - os: linux
+    compiler: gcc
+    env:
+      - CXX_COMPILER=g++-9
+      - C_COMPILER=gcc-9
+    addons:
+      apt:
+        sources: ["ubuntu-toolchain-r-test"]
+        packages: ["g++-7", "ninja-build"]
+  - os: linux
+    compiler: gcc
+    env:
+      - CXX_COMPILER=g++-9
+      - C_COMPILER=gcc-9
+    addons:
+      apt:
+        sources: ["ubuntu-toolchain-r-test"]
+        packages: ["g++-9", "ninja-build"]
+
+before_install:
+  - export CXX=${CXX_COMPILER}
+  - export CC=${C_COMPILER}
+
+script:
+  - mkdir ./build && cd ./build
+  - cmake --version;
+  - cmake -DCMAKE_BUILD_TYPE=$configuration ..;
+  - cmake --build . --target all
+  - ctest -R RunCMake.install --output-on-failure  --VV || true
+  - ls -lrt /Users/travis/build/asit-dhal/CMake/build/Tests/RunCMake/install/DEFAULT-PERMISSIONS-TARGET_ARCHIVE-build/root-all || true
+  - ls -lrt /Users/travis/build/asit-dhal/CMake/build/Tests/RunCMake/install/DEFAULT-PERMISSIONS-TARGET_ARCHIVE-build/root-all/lib || true
+  - ls -lrt /Users/travis/build/asit-dhal/CMake/build/Tests/RunCMake/install/DEFAULT-PERMISSIONS-TARGET_ARCHIVE-build/root-all/bin || true
