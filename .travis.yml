@@ -1,0 +1,29 @@
+# Copyright(c) 2018 Asit Dhal.
+# Distributed under the MIT License (http://opensource.org/licenses/MIT)
+
+language: cpp
+sudo: required
+dist: trusty
+
+configuration:
+  - Release
+  - Debug
+
+
+matrix:
+  include:
+  - os: osx
+    osx_image: xcode12
+    compiler: clang
+
+before_install:
+  - export CXX=${CXX_COMPILER}
+  - export CC=${C_COMPILER}
+
+script:
+  - mkdir ./build && cd ./build
+  - cmake --version
+  - cmake -G Xcode -DCMAKE_BUILD_TYPE=$configuration ..
+  - cmake --build .
+  - ctest -R -R ArtifactOutputDirs --output-on-failure -VV || true
+  - ls -lrt /Users/travis/build/asit-dhal/CMake/build/Tests/ArtifactOutputDirs || true
